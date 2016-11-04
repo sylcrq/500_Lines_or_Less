@@ -1,11 +1,12 @@
 import http.server
 import os
+import subprocess
 
-# custom exception class
+# custom exception need defined first
 class ServerException(Exception):
     pass
 
-# file not exist
+# 1st case: file not exist
 class case_no_file(object):
     def test(self, handler):
         return not os.path.exists(handler.full_path)
@@ -13,7 +14,7 @@ class case_no_file(object):
     def act(self, handler):
         raise ServerException('no file error')
 
-# list file content
+# 2nd case: show file content
 class case_is_file(object):
     def test(self, handler):
         return os.path.isfile(handler.full_path)
@@ -21,7 +22,7 @@ class case_is_file(object):
     def act(self, handler):
         handler.handle_file(handler.full_path)
 
-# list dir files
+# 3rd case: list dir files
 class case_is_dir(object):
     def test(self, handler):
         return os.path.isdir(handler.full_path)
@@ -29,7 +30,18 @@ class case_is_dir(object):
     def act(self, handler):
         handler.handle_list_dir(handler.full_path)
 
-# last always fail
+# 4th case: exec cgi file
+class case_is_cgi_file(object):
+    def test(self, handler):
+        return os.path.isfile(handler.full_path) and handler.full_path.endswith('.py')
+
+    def act(self, handler):
+        # exec in another process
+        with subprocess.Popen(['python3', handler.full_path], stdout=subprocess.PIPE) as proc:
+            out = proc.stdout.read().decode('utf-8')
+            handler.send_page(out)
+
+# last case: always fail
 class case_always_fail(object):
     def test(self, handler):
         return True
@@ -75,6 +87,7 @@ class MyRequestHandler(http.server.BaseHTTPRequestHandler):
 
     Cases = [
         case_no_file(),
+        case_is_cgi_file(),
         case_is_file(),
         case_is_dir(),
         case_always_fail()
